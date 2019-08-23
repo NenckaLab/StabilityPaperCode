@@ -1,0 +1,1 @@
+FLAIR images were processed with dcm2nii to create NIFTI files, then were run through the MNISpaceTransform code to move to MNI space.

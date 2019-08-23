@@ -1,0 +1,54 @@
+#!/bin/sh
+# convert ASL dicoms to nii (Siemens version) 
+
+export FSLDIR=/usr/local/fsl
+PATH=${FSLDIR}/bin:$PATH
+. ${FSLDIR}/etc/fslconf/fsl.sh
+export PATH=$PATH:/data/bin
+
+echo_time() {
+    date +"%R $*"
+}
+
+echo_time "Current directory: " 
+pwd
+
+# $1 is subject directory, $2 is the ASL dicoms $3 is the series number and description for ASL 
+
+echo "converting to nifti"
+
+echo_time “Converting DICOM to NIFTI”
+
+mkdir $1/Reconstructions
+mkdir $1/ASL
+
+dcm2nii -o $1/ASL $2
+mv $1/ASL/*.nii.gz $1/ASL/raw_PASL.nii.gz
+
+cd $1/
+cd ASL/
+# ASL motion correction
+3dvolreg -verbose -Fourier -prefix PASL_MC.nii.gz -base 0 -zpad 4 -1Dfile PASL_motion_parameters raw_PASL.nii.gz 
+
+# calculate mean deltaM
+3dcalc -a 'PASL_MC.nii.gz[2..$(2)]' -b 'PASL_MC.nii.gz[1..$(2)]' -expr "a-b"  -datum float -prefix ASLts.nii.gz
+3dTstat -mean -prefix deltaM.nii.gz ASLts.nii.gz 
+
+# extract M0 and calculate delat M 
+#cd $1/ASL/
+fslsplit $1/ASL/PASL_MC.nii.gz 
+mv $1/ASL/vol0000.nii.gz $1/ASL/M0.nii.gz
+#fslmerge -t $1/ASL/prefusion.nii.gz $1/ASL/vol*
+#asl_file --data=$1/ASL/prefusion.nii.gz --ntis=1 --iaf=tc --diff --out=$1/ASL/diffdata --mean=$1/ASL/diffdata_mean
+
+# rename output files for naming convention
+
+cp $1/ASL/M0.nii.gz $1/Reconstructions/$3__M0__nat__orig__orig__all__0__v1.nii.gz
+
+cp $1/ASL/deltaM.nii.gz $1/Reconstructions/$3__dM__nat__orig__orig__all__0__v1.nii.gz
+
+
+#chmod 770 ./*
+
+echo_time "Finished"
+

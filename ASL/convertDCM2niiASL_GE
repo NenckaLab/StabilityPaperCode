@@ -1,0 +1,42 @@
+#!/bin/sh
+# convert ASL dicoms to nii
+
+export FSLDIR=/usr/local/fsl
+PATH=${FSLDIR}/bin:$PATH
+. ${FSLDIR}/etc/fslconf/fsl.sh
+
+echo_time() {
+    date +"%R $*"
+}
+
+echo_time "Current directory: " 
+pwd
+
+# $1 is subject directory, $2 is the ASL dicoms $3 is the series number and description for ASL 
+
+echo "converting to nifti"
+
+echo_time “Converting DICOM to NIFTI”
+
+mkdir $1/Reconstructions
+mkdir $1/ASL
+
+
+dcm2nii -o $1/ASL $2
+
+# split ASL volumes
+cd $1/ASL
+fslsplit $1/ASL/*.nii.gz
+
+
+# rename output files for naming convention
+
+
+cp $1/ASL/vol0001.nii.gz $1/Reconstructions/$3__M0__nat__orig__orig__all__0__v1.nii.gz
+
+cp $1/ASL/vol0000.nii.gz $1/Reconstructions/$3__dM__nat__orig__orig__all__0__v1.nii.gz
+
+
+#chmod 770 ./*
+
+echo_time "Finished"

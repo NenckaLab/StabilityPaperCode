@@ -1,0 +1,84 @@
+#!/bin/bash
+
+#Add the path for afni files
+export PATH=$PATH:/data/bin
+
+#********** Read Input Line **********#
+while [[ $# -gt 1 ]]
+do
+key="$1"
+
+case $key in
+    #This is where the real dicoms (inputs) are located
+    -dR|--real)
+    	REAL="$2"
+    	shift # past argument
+    ;;
+    #This is where the real dicoms (inputs) are located
+    -dI|--imag)
+    	IMAGINARY="$2"
+    	shift # past argument
+    ;;
+    #This is where we want to output the files
+    -s|--Scans)
+    	SCAN="$2"
+    	shift # past argument
+    ;;
+    --default)
+    	DEFAULT=YES
+    ;;
+    *)
+    	#unknown option
+    ;;
+esac
+shift # past argument or value
+done
+
+#********** Run R2Star Code **********#
+/data/xnat/pipeline/MCWbin/bash/OxDicomSWI --dR $REAL/ --dI $IMAGINARY --out $SCAN --config /data/xnat/pipeline/catalog/MCWpipelines/UWARC/UWARC_SCAN_ProcQSMGE_Files/swiRecon.cfg
+
+mkdir $SCAN/thisProject
+
+#********** Loop through all of the series numbers **********#
+for num in $SCAN/Working/*
+do
+	#Pull the series number
+	name=${num##*/}
+
+	for file in $num/resources/DICOM/files/*.txt
+	do
+		temp=${file##*/}
+		filename="${temp%.*}"
+
+		echo PATH 
+		echo $file
+
+		#********** Make Reconstructions Directory **********#
+		mkdir -p $SCAN/reconstructions/$name
+
+		mypath="$SCAN/reconstructions/$name"
+
+		#********** Create NII Files **********#
+		dcm2nii -o $mypath $SCAN/Working/$name/resources/DICOM/files/
+
+		for f in $mypath/*
+		do  
+			3drefit -deoblique "${f}"
+		done
+
+
+		for f in $mypath/*
+		do 
+			3dresample -orient RPI -prefix $SCAN/reconstructions/$name"_QSM-"$filename"_nat_orig_orig_all_0.nii" -inset "${f}"
+		done
+
+		rm $file
+                #add remove files we don't want uploaded
+                rm -rf $mypath
+	done
+
+	#Copy structure and all Dicoms from Working Dir to thisProject Dir
+	cp —p -r $SCAN/Working/ $SCAN/thisProject/
+done
+
+rm -r $SCAN/Working/
